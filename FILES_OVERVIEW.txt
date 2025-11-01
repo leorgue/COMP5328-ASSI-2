@@ -1,0 +1,202 @@
+================================================================================
+FILE OVERVIEW - Noisy Label Learning with ResNet18
+================================================================================
+
+TRAINING SCRIPTS (Python)
+--------------------------------------------------------------------------------
+✓ train_resnet_baseline.py
+  - Standard ResNet18 training without noise correction
+  - Outputs: resnet_baseline.pth, resnet_baseline_results.csv
+
+✓ train_forward_correction.py
+  - Forward loss correction using transition matrix
+  - Outputs: resnet_forward.pth, resnet_forward_results.csv
+
+✓ train_backward_correction.py
+  - Backward loss correction using inverse transition matrix
+  - Outputs: resnet_backward.pth, resnet_backward_results.csv
+
+✓ train_coteaching.py
+  - Co-Teaching approach with two networks
+  - Outputs: resnet_coteaching.pth, resnet_coteaching_results.csv
+
+UTILITY SCRIPTS
+--------------------------------------------------------------------------------
+✓ run_all_experiments.py
+  - Python script to run all 4 experiments sequentially
+  - Generates comparison CSV file
+  - Cross-platform (Windows/Linux/Mac)
+
+✓ run_all.bat
+  - Windows batch script to run all experiments
+  - For Windows Command Prompt
+
+✓ run_all.sh
+  - Shell script to run all experiments
+  - For Linux/Mac/WSL
+  - Make executable: chmod +x run_all.sh
+
+✓ load_and_test_model.py
+  - Load a trained model and evaluate on test set
+  - Shows per-class accuracy and confusion matrix
+  - Usage: python load_and_test_model.py --model_path resnet_baseline.pth
+
+DOCUMENTATION
+--------------------------------------------------------------------------------
+✓ README_training_scripts.md
+  - Detailed documentation of all training scripts
+  - Command-line arguments explained
+  - Usage examples
+
+✓ QUICK_START.md
+  - Quick start guide for running experiments
+  - Troubleshooting tips
+  - Expected results
+
+✓ FILES_OVERVIEW.txt
+  - This file - overview of all files
+
+TYPICAL WORKFLOW
+--------------------------------------------------------------------------------
+
+1. TRAIN ALL MODELS (Choose one method):
+   
+   Method A - Python Script (Recommended):
+   $ python run_all_experiments.py
+   
+   Method B - Windows:
+   $ run_all.bat
+   
+   Method C - Linux/Mac:
+   $ ./run_all.sh
+   
+   Method D - Individual:
+   $ python train_resnet_baseline.py
+   $ python train_forward_correction.py
+   $ python train_backward_correction.py
+   $ python train_coteaching.py
+
+2. CHECK RESULTS:
+   
+   View training history:
+   $ python -c "import pandas as pd; print(pd.read_csv('resnet_baseline_results.csv'))"
+   
+   Compare all methods:
+   $ python -c "import pandas as pd; print(pd.read_csv('all_methods_comparison.csv'))"
+
+3. TEST SPECIFIC MODEL:
+   
+   $ python load_and_test_model.py --model_path resnet_forward.pth
+
+OUTPUT FILES
+--------------------------------------------------------------------------------
+
+After running all experiments, you'll have:
+
+MODEL FILES (.pth):
+  - resnet_baseline.pth           (~42 MB)
+  - resnet_forward.pth            (~42 MB)
+  - resnet_backward.pth           (~42 MB)
+  - resnet_coteaching.pth         (~42 MB)
+
+RESULTS FILES (.csv):
+  - resnet_baseline_results.csv   (training history)
+  - resnet_forward_results.csv    (training history)
+  - resnet_backward_results.csv   (training history)
+  - resnet_coteaching_results.csv (training history)
+  - all_methods_comparison.csv    (comparison table)
+
+REQUIREMENTS
+--------------------------------------------------------------------------------
+
+Python packages:
+  - torch
+  - torchvision
+  - numpy
+  - pandas
+  - tqdm
+  - scikit-learn (for confusion matrix in load_and_test_model.py)
+
+Install:
+  $ pip install torch torchvision numpy pandas tqdm scikit-learn
+
+Hardware:
+  - CPU: Works but slow (~20 min per model for 15 epochs)
+  - GPU: Recommended (~3-5 min per model for 15 epochs)
+  - RAM: ~4 GB minimum
+  - Disk: ~200 MB for all models and results
+
+CUSTOMIZATION
+--------------------------------------------------------------------------------
+
+All training scripts support these arguments:
+
+  --data_path           Path to CIFAR.npz (default: data/CIFAR.npz)
+  --epochs              Number of epochs (default: 15)
+  --batch_size          Batch size (default: 64)
+  --lr                  Learning rate (default: 0.001)
+  --model_save_path     Output model path (.pth)
+  --results_save_path   Output results path (.csv)
+
+Example:
+  $ python train_resnet_baseline.py --epochs 20 --batch_size 128 --lr 0.0001
+
+Co-Teaching has additional argument:
+  --noise_rate          Noise rate for forget schedule (default: 0.3)
+
+TRANSITION MATRIX (CIFAR Dataset)
+--------------------------------------------------------------------------------
+
+The CIFAR dataset has class-dependent label noise:
+
+    T = [[0.7, 0.3, 0.0],      # Class 0: 70% correct, 30% → Class 1
+         [0.0, 0.7, 0.3],      # Class 1: 70% correct, 30% → Class 2
+         [0.3, 0.0, 0.7]]      # Class 2: 70% correct, 30% → Class 0
+
+Where T[i,j] = P(observed label = j | true label = i)
+
+This creates a 30% label noise rate with specific confusion patterns.
+
+EXPECTED PERFORMANCE
+--------------------------------------------------------------------------------
+
+On CIFAR with 30% class-dependent noise:
+
+  Baseline:           ~65-70% test accuracy
+  Forward Correction: ~70-75% test accuracy
+  Backward Correction:~70-75% test accuracy
+  Co-Teaching:        ~72-77% test accuracy
+
+Note: Results may vary based on random initialization and data splits.
+
+TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+Issue: CUDA out of memory
+  Solution: Reduce batch size (--batch_size 32)
+
+Issue: Module not found
+  Solution: pip install <missing_module>
+
+Issue: Model file not found
+  Solution: Check file path, ensure training completed
+
+Issue: Slow training
+  Solution: Reduce epochs or batch size, use GPU if available
+
+Issue: Low accuracy
+  Solution: Normal for noisy labels, compare with other methods
+
+NEXT STEPS
+--------------------------------------------------------------------------------
+
+After running experiments:
+
+1. Compare results in all_methods_comparison.csv
+2. Visualize training curves using pandas/matplotlib
+3. Try different hyperparameters
+4. Test on FashionMNIST datasets (modify data_path)
+5. Implement other noise-robust methods
+
+================================================================================
+
