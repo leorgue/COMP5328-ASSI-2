@@ -5,29 +5,13 @@ Example script to load a trained model and test it
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
+from datasets import CIFARDataset
 import torchvision.models as models
-import torchvision.transforms as transforms
 import argparse
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# Custom Dataset class
-class CIFARDataset(Dataset):
-    def __init__(self, images, labels):
-        self.images = torch.FloatTensor(images) / 255.0
-        self.images = self.images.permute(0, 3, 1, 2)
-        self.labels = torch.LongTensor(labels)
-        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                             std=[0.229, 0.224, 0.225])
-    
-    def __len__(self):
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
-        image = self.normalize(self.images[idx])
-        return image, self.labels[idx]
 
 # Pre-trained ResNet18 adapted for CIFAR
 def get_model(num_classes=3):
