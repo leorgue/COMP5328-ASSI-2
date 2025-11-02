@@ -173,6 +173,77 @@ def get_transition_matrix(dataset_name, device):
     
     return transition_matrices[dataset_name].to(device)
 
+def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test, 
+                      is_fashion_mnist, input_channels, num_classes, 
+                      transition_matrix, criterion_eval):
+    """Run a single training trial"""
+    
+    print(f"\n{'='*80}")
+    print(f"TRIAL {trial_num}/{args.n_trials}")
+    print(f"{'='*80}")
+    
+    # Create datasets and dataloaders
+    if is_fashion_mnist:
+        train_dataset = FashionMNISTDataset(X_train, y_train)
+        test_dataset = FashionMNISTDataset(X_test, y_test)
+    else:
+        train_dataset = CIFARDataset(X_train, y_train)
+        test_dataset = CIFARDataset(X_test, y_test)
+    
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+    
+    # Initialize model
+    model = get_pretrained_model(num_classes=num_classes, input_channels=input_channels).to(device)
+    
+    # Backward correction loss for training
+    criterion_train = BackwardCorrectionLoss(transition_matrix)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    
+    # Training loop
+    results = []
+    best_test_acc = 0.0
+    best_epoch = 0
+    
+    print(f"Training for {args.epochs} epochs...")
+    print("-" * 80)
+    
+    for epoch in range(args.epochs):
+        train_loss, train_acc = train_epoch(model, train_loader, criterion_train, optimizer, device)
+        test_loss, test_acc = evaluate(model, test_loader, criterion_eval, device)
+        
+        print(f"Epoch [{epoch+1}/{args.epochs}] | "
+              f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
+              f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
+        
+        # Save best model
+        if test_acc > best_test_acc:
+            best_test_acc = test_acc
+            best_epoch = epoch + 1
+            if args.n_trials == 1:
+                torch.save(model.state_dict(), args.model_save_path)
+            else:
+                # Save with trial number
+                model_path = args.model_save_path.replace('.pth', f'_trial{trial_num}.pth')
+                torch.save(model.state_dict(), model_path)
+        
+        # Store results
+        results.append({
+            'trial': trial_num,
+            'epoch': epoch + 1,
+            'train_loss': train_loss,
+            'train_acc': train_acc,
+            'test_loss': test_loss,
+            'test_acc': test_acc,
+            'best_test_acc': best_test_acc
+        })
+    
+    print("-" * 80)
+    print(f"TRIAL {trial_num} COMPLETED | Best Epoch: {best_epoch} | Best Test Acc: {best_test_acc:.2f}%")
+    print("=" * 80)
+    
+    return results, best_test_acc, best_epoch
+
 def main(args):
     # Load data
     print(f"\nLoading dataset from {args.data_path}...")
@@ -210,77 +281,57 @@ def main(args):
         print("\nWarning: Transition matrix is not invertible!")
         return
     
-    # Create datasets and dataloaders using appropriate dataset class
-    if is_fashion_mnist:
-        train_dataset = FashionMNISTDataset(X_train, y_train)
-        test_dataset = FashionMNISTDataset(X_test, y_test)
-        input_channels = 1
-    else:
-        train_dataset = CIFARDataset(X_train, y_train)
-        test_dataset = CIFARDataset(X_test, y_test)
-        input_channels = 3
-    
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
-    
-    # Initialize model
+    # Determine input channels and number of classes
+    input_channels = 1 if is_fashion_mnist else 3
     num_classes = len(np.unique(y_train))
-    model = get_pretrained_model(num_classes=num_classes, input_channels=input_channels).to(device)
-    
-    # Backward correction loss for training, standard loss for evaluation
-    criterion_train = BackwardCorrectionLoss(transition_matrix)
     criterion_eval = nn.CrossEntropyLoss()
     
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    
     print(f"\nModel: ResNet18 + Backward Loss Correction")
-    print(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"Dataset Type: {args.dataset_type}")
+    print(f"Number of Trials: {args.n_trials}")
+    print(f"Epochs per Trial: {args.epochs}")
     
-    # Training loop
-    results = []
-    best_test_acc = 0.0
-    best_epoch = 0
+    # Run multiple trials
+    all_results = []
+    trial_best_accs = []
+    trial_best_epochs = []
     
-    print(f"\nTraining for {args.epochs} epochs...")
-    print("=" * 80)
+    for trial in range(1, args.n_trials + 1):
+        trial_results, best_acc, best_epoch = run_single_trial(
+            args, trial, X_train, y_train, X_test, y_test,
+            is_fashion_mnist, input_channels, num_classes,
+            transition_matrix, criterion_eval
+        )
+        all_results.extend(trial_results)
+        trial_best_accs.append(best_acc)
+        trial_best_epochs.append(best_epoch)
     
-    for epoch in range(args.epochs):
-        train_loss, train_acc = train_epoch(model, train_loader, criterion_train, optimizer, device)
-        test_loss, test_acc = evaluate(model, test_loader, criterion_eval, device)
-        
-        print(f"\nEpoch [{epoch+1}/{args.epochs}]")
-        print(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
-        print(f"  Test Loss:  {test_loss:.4f}, Test Acc:  {test_acc:.2f}%")
-        
-        # Save best model
-        if test_acc > best_test_acc:
-            best_test_acc = test_acc
-            best_epoch = epoch + 1
-            torch.save(model.state_dict(), args.model_save_path)
-            print(f"  ✓ New best model saved! (Test Acc: {best_test_acc:.2f}%)")
-        
-        # Store results
-        results.append({
-            'epoch': epoch + 1,
-            'train_loss': train_loss,
-            'train_acc': train_acc,
-            'test_loss': test_loss,
-            'test_acc': test_acc,
-            'best_test_acc': best_test_acc
-        })
-        
-        print("-" * 80)
-    
-    # Save results to CSV
-    df = pd.DataFrame(results)
+    # Save all results to CSV
+    df = pd.DataFrame(all_results)
     df.to_csv(args.results_save_path, index=False)
     
-    print("\n" + "=" * 80)
-    print("TRAINING COMPLETED")
-    print("=" * 80)
-    print(f"Best Model: Epoch {best_epoch}, Test Acc: {best_test_acc:.2f}%")
-    print(f"Results saved to: {args.results_save_path}")
-    print(f"Model saved to: {args.model_save_path}")
+    # Print summary statistics
+    print(f"\n{'='*80}")
+    print("TRAINING SUMMARY")
+    print(f"{'='*80}")
+    print(f"Total Trials: {args.n_trials}")
+    print(f"\nBest Test Accuracy per Trial:")
+    for i, acc in enumerate(trial_best_accs, 1):
+        print(f"  Trial {i}: {acc:.2f}% (Best Epoch: {trial_best_epochs[i-1]})")
+    
+    if args.n_trials > 1:
+        mean_acc = np.mean(trial_best_accs)
+        std_acc = np.std(trial_best_accs)
+        print(f"\nAggregate Statistics:")
+        print(f"  Mean Test Acc: {mean_acc:.2f}% ± {std_acc:.2f}%")
+        print(f"  Min Test Acc:  {np.min(trial_best_accs):.2f}%")
+        print(f"  Max Test Acc:  {np.max(trial_best_accs):.2f}%")
+    
+    print(f"\nResults saved to: {args.results_save_path}")
+    if args.n_trials == 1:
+        print(f"Model saved to: {args.model_save_path}")
+    else:
+        print(f"Models saved with trial numbers: {args.model_save_path.replace('.pth', '_trial*.pth')}")
     print("=" * 80)
 
 if __name__ == "__main__":
@@ -296,6 +347,8 @@ if __name__ == "__main__":
                        help='Batch size for training')
     parser.add_argument('--lr', type=float, default=0.001,
                        help='Learning rate')
+    parser.add_argument('--n_trials', type=int, default=1,
+                       help='Number of training trials to run')
     parser.add_argument('--model_save_path', type=str, default='resnet_backward.pth',
                        help='Path to save best model')
     parser.add_argument('--results_save_path', type=str, default='resnet_backward_results.csv',
