@@ -35,10 +35,30 @@ class CIFARDataset(Dataset):
         image = self.normalize(self.images[idx])
         return image, self.labels[idx]
 
-# Pre-trained ResNet18 adapted for CIFAR
-def get_pretrained_model(num_classes=3):
+# Custom Dataset class for FashionMNIST
+class FashionMNISTDataset(Dataset):
+    def __init__(self, images, labels):
+        self.images = torch.FloatTensor(images) / 255.0
+        # Handle grayscale images - add channel dimension if needed
+        if len(self.images.shape) == 3:  # (N, H, W)
+            self.images = self.images.unsqueeze(1)  # (N, 1, H, W)
+        elif len(self.images.shape) == 4 and self.images.shape[-1] == 1:  # (N, H, W, 1)
+            self.images = self.images.permute(0, 3, 1, 2)  # (N, 1, H, W)
+        self.labels = torch.LongTensor(labels)
+        # FashionMNIST normalization (mean and std for grayscale)
+        self.normalize = transforms.Normalize(mean=[0.5], std=[0.5])
+    
+    def __len__(self):
+        return len(self.labels)
+    
+    def __getitem__(self, idx):
+        image = self.normalize(self.images[idx])
+        return image, self.labels[idx]
+
+# Pre-trained ResNet18 adapted for CIFAR and FashionMNIST
+def get_pretrained_model(num_classes=3, input_channels=3):
     model = models.resnet18(pretrained=True)
-    model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+    model.conv1 = nn.Conv2d(input_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
     model.maxpool = nn.Identity()
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model
@@ -119,9 +139,43 @@ def evaluate(model, dataloader, criterion, device):
     
     return running_loss / len(dataloader), 100 * correct / total
 
+def get_transition_matrix(dataset_name, device):
+    """
+    Returns the transition matrix for the specified dataset.
+    
+    Args:
+        dataset_name: Name of the dataset (e.g., 'CIFAR', 'FashionMNIST0.3', 'FashionMNIST0.6')
+        device: torch device
+    
+    Returns:
+        Transition matrix as a torch tensor
+    """
+    transition_matrices = {
+        'CIFAR': torch.FloatTensor([
+            [0.7, 0.3, 0.0],
+            [0.0, 0.7, 0.3],
+            [0.3, 0.0, 0.7]
+        ]),
+        'FashionMNIST0.3': torch.FloatTensor([
+            [0.7, 0.3, 0.0],
+            [0.0, 0.7, 0.3],
+            [0.3, 0.0, 0.7]
+        ]),
+        'FashionMNIST0.6': torch.FloatTensor([
+            [0.4, 0.3, 0.3],
+            [0.3, 0.4, 0.3],
+            [0.3, 0.3, 0.4]
+        ])
+    }
+    
+    if dataset_name not in transition_matrices:
+        raise ValueError(f"Unknown dataset: {dataset_name}. Available: {list(transition_matrices.keys())}")
+    
+    return transition_matrices[dataset_name].to(device)
+
 def main(args):
     # Load data
-    print(f"\nLoading CIFAR dataset from {args.data_path}...")
+    print(f"\nLoading dataset from {args.data_path}...")
     cifar_data = np.load(args.data_path)
     X_train = cifar_data['Xtr']
     y_train = cifar_data['Str']
@@ -131,12 +185,18 @@ def main(args):
     print(f"Training set: {X_train.shape}")
     print(f"Test set: {X_test.shape}")
     
-    # Transition matrix for CIFAR
-    transition_matrix = torch.FloatTensor([
-        [0.7, 0.3, 0.0],
-        [0.0, 0.7, 0.3],
-        [0.3, 0.0, 0.7]
-    ]).to(device)
+    # Determine if we're using FashionMNIST or CIFAR
+    is_fashion_mnist = 'FashionMNIST' in args.dataset_type
+    
+    # Reshape FashionMNIST data if needed (from flat 784 to 28x28)
+    if is_fashion_mnist and len(X_train.shape) == 2:
+        X_train = X_train.reshape(-1, 28, 28)
+        X_test = X_test.reshape(-1, 28, 28)
+        print(f"Reshaped training set: {X_train.shape}")
+        print(f"Reshaped test set: {X_test.shape}")
+    
+    # Get transition matrix based on dataset type
+    transition_matrix = get_transition_matrix(args.dataset_type, device)
     
     print("\nTransition Matrix:")
     print(transition_matrix.cpu().numpy())
@@ -150,16 +210,22 @@ def main(args):
         print("\nWarning: Transition matrix is not invertible!")
         return
     
-    # Create datasets and dataloaders
-    train_dataset = CIFARDataset(X_train, y_train)
-    test_dataset = CIFARDataset(X_test, y_test)
+    # Create datasets and dataloaders using appropriate dataset class
+    if is_fashion_mnist:
+        train_dataset = FashionMNISTDataset(X_train, y_train)
+        test_dataset = FashionMNISTDataset(X_test, y_test)
+        input_channels = 1
+    else:
+        train_dataset = CIFARDataset(X_train, y_train)
+        test_dataset = CIFARDataset(X_test, y_test)
+        input_channels = 3
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize model
     num_classes = len(np.unique(y_train))
-    model = get_pretrained_model(num_classes=num_classes).to(device)
+    model = get_pretrained_model(num_classes=num_classes, input_channels=input_channels).to(device)
     
     # Backward correction loss for training, standard loss for evaluation
     criterion_train = BackwardCorrectionLoss(transition_matrix)
@@ -220,7 +286,10 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train ResNet18 with Backward Loss Correction')
     parser.add_argument('--data_path', type=str, default='data/CIFAR.npz',
-                       help='Path to CIFAR dataset')
+                       help='Path to dataset (.npz file)')
+    parser.add_argument('--dataset_type', type=str, default='CIFAR',
+                       choices=['CIFAR', 'FashionMNIST0.3', 'FashionMNIST0.6'],
+                       help='Type of dataset (determines transition matrix)')
     parser.add_argument('--epochs', type=int, default=15,
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=64,
@@ -234,4 +303,3 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     main(args)
-
