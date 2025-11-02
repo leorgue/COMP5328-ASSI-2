@@ -5,13 +5,13 @@ Reference: Co-teaching: Robust Training of Deep Neural Networks with Extremely N
 """
 
 import numpy as np
+from get_model import get_model
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-import torchvision.models as models
-import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from datasets import CIFARDataset, FashionMNISTDataset
 from tqdm import tqdm
 import pandas as pd
 import argparse
@@ -20,30 +20,8 @@ import argparse
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-# Custom Dataset class
-class CIFARDataset(Dataset):
-    def __init__(self, images, labels):
-        self.images = torch.FloatTensor(images) / 255.0
-        self.images = self.images.permute(0, 3, 1, 2)
-        self.labels = torch.LongTensor(labels)
-        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                             std=[0.229, 0.224, 0.225])
-    
-    def __len__(self):
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
-        image = self.normalize(self.images[idx])
-        return image, self.labels[idx], idx
 
 # Pre-trained ResNet18 adapted for CIFAR
-def get_pretrained_model(num_classes=3):
-    model = models.resnet18(pretrained=True)
-    model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-    model.maxpool = nn.Identity()
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
-    return model
-
 # Co-Teaching Loss
 def loss_coteaching(y_1, y_2, t, forget_rate, ind, noise_or_not):
     """
@@ -176,8 +154,8 @@ def main(args):
     
     # Initialize two models for co-teaching
     num_classes = len(np.unique(y_train))
-    model1 = get_pretrained_model(num_classes=num_classes).to(device)
-    model2 = get_pretrained_model(num_classes=num_classes).to(device)
+    model1 = get_model(num_classes=num_classes).to(device)
+    model2 = get_model(num_classes=num_classes).to(device)
     
     criterion = nn.CrossEntropyLoss()
     optimizer1 = optim.Adam(model1.parameters(), lr=args.lr, weight_decay=1e-4)

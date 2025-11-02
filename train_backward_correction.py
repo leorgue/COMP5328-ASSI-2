@@ -8,9 +8,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-import torchvision.models as models
-import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+from datasets import CIFARDataset, FashionMNISTDataset
+from get_model import get_model
 from tqdm import tqdm
 import pandas as pd
 import argparse
@@ -18,50 +18,6 @@ import argparse
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
-
-# Custom Dataset class
-class CIFARDataset(Dataset):
-    def __init__(self, images, labels):
-        self.images = torch.FloatTensor(images) / 255.0
-        self.images = self.images.permute(0, 3, 1, 2)
-        self.labels = torch.LongTensor(labels)
-        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                             std=[0.229, 0.224, 0.225])
-    
-    def __len__(self):
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
-        image = self.normalize(self.images[idx])
-        return image, self.labels[idx]
-
-# Custom Dataset class for FashionMNIST
-class FashionMNISTDataset(Dataset):
-    def __init__(self, images, labels):
-        self.images = torch.FloatTensor(images) / 255.0
-        # Handle grayscale images - add channel dimension if needed
-        if len(self.images.shape) == 3:  # (N, H, W)
-            self.images = self.images.unsqueeze(1)  # (N, 1, H, W)
-        elif len(self.images.shape) == 4 and self.images.shape[-1] == 1:  # (N, H, W, 1)
-            self.images = self.images.permute(0, 3, 1, 2)  # (N, 1, H, W)
-        self.labels = torch.LongTensor(labels)
-        # FashionMNIST normalization (mean and std for grayscale)
-        self.normalize = transforms.Normalize(mean=[0.5], std=[0.5])
-    
-    def __len__(self):
-        return len(self.labels)
-    
-    def __getitem__(self, idx):
-        image = self.normalize(self.images[idx])
-        return image, self.labels[idx]
-
-# Pre-trained ResNet18 adapted for CIFAR and FashionMNIST
-def get_pretrained_model(num_classes=3, input_channels=3):
-    model = models.resnet18(pretrained=True)
-    model.conv1 = nn.Conv2d(input_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
-    model.maxpool = nn.Identity()
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
-    return model
 
 # Backward Correction Loss
 class BackwardCorrectionLoss(nn.Module):
@@ -194,7 +150,7 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize model
-    model = get_pretrained_model(num_classes=num_classes, input_channels=input_channels).to(device)
+    model = get_model(num_classes=num_classes, input_channels=input_channels).to(device)
     
     # Backward correction loss for training
     criterion_train = BackwardCorrectionLoss(transition_matrix)
