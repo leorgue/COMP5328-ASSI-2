@@ -18,6 +18,7 @@ from datetime import datetime
 
 from seed_everything import seed_everything
 
+
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
@@ -74,25 +75,37 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     print(f"\n{'='*80}")
     print(f"TRIAL {trial_num}/{args.n_trials}")
     print(f"{'='*80}")
+
+    # Split 80-20 randomly for training and validation
+    indices = np.arange(len(X_train))
+    np.random.shuffle(indices)
+    split_idx = int(0.8 * len(indices))
+    train_indices = indices[:split_idx]
+    val_indices = indices[split_idx:]
     
     # Create datasets and dataloaders
     if is_fashion_mnist:
-        train_dataset = FashionMNISTDataset(X_train, y_train)
+        train_dataset = FashionMNISTDataset(X_train[train_indices], y_train[train_indices])
+        val_dataset = FashionMNISTDataset(X_train[val_indices], y_train[val_indices])
         test_dataset = FashionMNISTDataset(X_test, y_test)
     else:
-        train_dataset = CIFARDataset(X_train, y_train)
+        train_dataset = CIFARDataset(X_train[train_indices], y_train[train_indices])
+        val_dataset = CIFARDataset(X_train[val_indices], y_train[val_indices])
         test_dataset = CIFARDataset(X_test, y_test)
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
                               shuffle=True, num_workers=2, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize model
     model = get_model(num_classes=num_classes, input_channels=input_channels).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    
+    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+
     # Training loop
     results = []
+    best_val_acc = 0.0
     best_test_acc = 0.0
     best_epoch = 0
     
@@ -101,23 +114,24 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     
     for epoch in range(args.epochs):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss, val_acc = evaluate(model, val_loader, criterion, device)
         test_loss, test_acc = evaluate(model, test_loader, criterion, device)
-        
         print(f"Epoch [{epoch+1}/{args.epochs}] | "
               f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
+              f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}% | "
               f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
-        
+
         # Save best model
-        if test_acc > best_test_acc:
-            best_test_acc = test_acc
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
             best_epoch = epoch + 1
+            best_test_acc = test_acc
             if args.n_trials == 1:
                 torch.save(model.state_dict(), args.model_save_path)
             else:
                 # Save with trial number
                 model_path = args.model_save_path.replace('.pth', f'_trial{trial_num}.pth')
                 torch.save(model.state_dict(), model_path)
-        
         # Store results
         results.append({
             'trial': trial_num,
@@ -126,24 +140,25 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
             'train_acc': train_acc,
             'test_loss': test_loss,
             'test_acc': test_acc,
-            'best_test_acc': best_test_acc
+            'best_val_acc': best_val_acc,
+            'best_test_acc': best_test_acc,
         })
-    
+
     print("-" * 80)
-    print(f"TRIAL {trial_num} COMPLETED | Best Epoch: {best_epoch} | Best Test Acc: {best_test_acc:.2f}%")
+    print(f"TRIAL {trial_num} COMPLETED | Best Epoch: {best_epoch} | Best Val Acc: {best_val_acc:.2f}% | Best Test Acc: {best_test_acc:.2f}%")
     print("=" * 80)
-    
-    return results, best_test_acc, best_epoch
+
+    return results, best_val_acc, best_test_acc, best_epoch
 
 def main(args):
     # Load data
     seed_everything(args.seed, cuda_deterministic=False)
     print(f"\nLoading dataset from {args.data_path}...")
-    cifar_data = np.load(args.data_path)
-    X_train = cifar_data['Xtr']
-    y_train = cifar_data['Str']
-    X_test = cifar_data['Xts']
-    y_test = cifar_data['Yts']
+    dataset = np.load(args.data_path)
+    X_train = dataset['Xtr']
+    y_train = dataset['Str']
+    X_test = dataset['Xts']
+    y_test = dataset['Yts']
     
     print(f"Training set: {X_train.shape}")
     print(f"Test set: {X_test.shape}")
@@ -174,6 +189,13 @@ def main(args):
     trial_best_epochs = []
     
     for trial in range(1, args.n_trials + 1):
+        # Split 80-20 randomly for training and validation
+        indices = np.arange(len(X_train))
+        np.random.shuffle(indices)
+        split_idx = int(0.8 * len(indices))
+        train_indices = indices[:split_idx]
+        val_indices = indices[split_idx:]
+
         trial_results, best_acc, best_epoch = run_single_trial(
             args, trial, X_train, y_train, X_test, y_test,
             is_fashion_mnist, input_channels, num_classes, criterion
@@ -181,6 +203,7 @@ def main(args):
         all_results.extend(trial_results)
         trial_best_accs.append(best_acc)
         trial_best_epochs.append(best_epoch)
+
     
     # Save all results to CSV
     df = pd.DataFrame(all_results)
@@ -221,7 +244,7 @@ if __name__ == "__main__":
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=64,
                        help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=0.001,
+    parser.add_argument('--lr', type=float, default=0.01,
                        help='Learning rate')
     parser.add_argument('--n_trials', type=int, default=1,
                        help='Number of training trials to run')

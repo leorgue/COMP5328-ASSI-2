@@ -140,11 +140,11 @@ def main(args):
     seed_everything(args.seed, cuda_deterministic=False)
     # Load data
     print(f"\nLoading CIFAR dataset from {args.data_path}...")
-    cifar_data = np.load(args.data_path)
-    X_train = cifar_data['Xtr']
-    y_train = cifar_data['Str']
-    X_test = cifar_data['Xts']
-    y_test = cifar_data['Yts']
+    dataset = np.load(args.data_path)
+    X_train = dataset['Xtr']
+    y_train = dataset['Str']
+    X_test = dataset['Xts']
+    y_test = dataset['Yts']
     
     print(f"Training set: {X_train.shape}")
     print(f"Test set: {X_test.shape}")
