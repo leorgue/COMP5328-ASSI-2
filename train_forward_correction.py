@@ -300,7 +300,9 @@ if __name__ == "__main__":
                        help='Path to save best model')
     parser.add_argument('--results_save_path', type=str, default='resnet_forward_results.csv',
                        help='Path to save training results')
-    
+    parser.add_argument('--seed', type=int, default=0,
+                       help='Random seed for reproducibility')
+        
     args = parser.parse_args()
     main(args)
 
