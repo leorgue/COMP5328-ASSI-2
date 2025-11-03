@@ -181,7 +181,7 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     for epoch in range(args.epochs):
         train_loss, train_acc = train_epoch(model, train_loader, criterion_train, optimizer, device)
         test_loss, test_acc = evaluate(model, test_loader, criterion_eval, device)
-        val_loss, val_acc = evaluate(model, val_loader, criterion_eval, device)
+        val_loss, val_acc = evaluate(model, val_loader, criterion_train, device)
         
         print(f"Epoch [{epoch+1}/{args.epochs}] | "
               f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
