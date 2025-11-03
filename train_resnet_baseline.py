@@ -16,6 +16,8 @@ import argparse
 import os
 from datetime import datetime
 
+from seed_everything import seed_everything
+
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
@@ -81,7 +83,8 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
         train_dataset = CIFARDataset(X_train, y_train)
         test_dataset = CIFARDataset(X_test, y_test)
     
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+                              shuffle=True, num_workers=2, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize model
@@ -134,6 +137,7 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
 
 def main(args):
     # Load data
+    seed_everything(args.seed, cuda_deterministic=False)
     print(f"\nLoading dataset from {args.data_path}...")
     cifar_data = np.load(args.data_path)
     X_train = cifar_data['Xtr']
@@ -225,7 +229,9 @@ if __name__ == "__main__":
                        help='Path to save best model')
     parser.add_argument('--results_save_path', type=str, default='resnet_baseline_results.csv',
                        help='Path to save training results')
-    
+    parser.add_argument('--seed', type=int, default=0,
+                       help='Random seed for reproducibility')
+
     args = parser.parse_args()
     main(args)
 

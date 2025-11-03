@@ -16,6 +16,8 @@ from tqdm import tqdm
 import pandas as pd
 import argparse
 
+from seed_everything import seed_everything
+
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
@@ -134,6 +136,8 @@ def evaluate(model, dataloader, criterion, device):
     return running_loss / len(dataloader), 100 * correct / total
 
 def main(args):
+    # Set random seed
+    seed_everything(args.seed, cuda_deterministic=False)
     # Load data
     print(f"\nLoading CIFAR dataset from {args.data_path}...")
     cifar_data = np.load(args.data_path)
@@ -149,7 +153,8 @@ def main(args):
     train_dataset = CIFARDataset(X_train, y_train)
     test_dataset = CIFARDataset(X_test, y_test)
     
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
+                              shuffle=True, num_workers=2, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize two models for co-teaching
