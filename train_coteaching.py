@@ -148,13 +148,21 @@ def main(args):
     
     print(f"Training set: {X_train.shape}")
     print(f"Test set: {X_test.shape}")
+    # Split 80-20 randomly for training and validation
+    indices = np.arange(len(X_train))
+    np.random.shuffle(indices)
+    split_idx = int(0.8 * len(indices))
+    train_indices = indices[:split_idx]
+    val_indices = indices[split_idx:]
     
     # Create datasets and dataloaders
     train_dataset = CIFARDataset(X_train, y_train)
+    val_dataset = CIFARDataset(X_train[val_indices], y_train[val_indices])
     test_dataset = CIFARDataset(X_test, y_test)
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
                               shuffle=True, num_workers=2, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize two models for co-teaching
@@ -163,9 +171,11 @@ def main(args):
     model2 = get_model(num_classes=num_classes).to(device)
     
     criterion = nn.CrossEntropyLoss()
-    optimizer1 = optim.Adam(model1.parameters(), lr=args.lr, weight_decay=1e-4)
-    optimizer2 = optim.Adam(model2.parameters(), lr=args.lr, weight_decay=1e-4)
-    
+    # optimizer1 = optim.Adam(model1.parameters(), lr=args.lr, weight_decay=1e-4)
+    # optimizer2 = optim.Adam(model2.parameters(), lr=args.lr, weight_decay=1e-4)
+    optimizer1 = optim.SGD(model1.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+    optimizer2 = optim.SGD(model2.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+
     print(f"\nModel: Co-Teaching with 2 ResNet18 networks")
     print(f"Parameters per network: {sum(p.numel() for p in model1.parameters()):,}")
     print(f"Noise rate: {args.noise_rate}")
@@ -173,6 +183,7 @@ def main(args):
     # Training loop
     results = []
     best_test_acc = 0.0
+    best_val_acc = 0.0
     best_epoch = 0
     
     print(f"\nTraining for {args.epochs} epochs...")
@@ -184,33 +195,40 @@ def main(args):
             optimizer1, optimizer2, 
             epoch, args.epochs, args.noise_rate, device
         )
+        val_loss1, val_acc1 = evaluate(model1, val_loader, criterion, device)
+        val_loss2, val_acc2 = evaluate(model2, val_loader, criterion, device)
         
         # Evaluate both models and take the better one
         test_loss1, test_acc1 = evaluate(model1, test_loader, criterion, device)
         test_loss2, test_acc2 = evaluate(model2, test_loader, criterion, device)
         
         # Use average of both models for reporting
+        val_loss = (val_loss1 + val_loss2) / 2
+        val_acc = (val_acc1 + val_acc2) / 2
         test_loss = (test_loss1 + test_loss2) / 2
         test_acc = (test_acc1 + test_acc2) / 2
         
         print(f"\nEpoch [{epoch+1}/{args.epochs}]")
         print(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
+        print(f"  Val   Loss:  {val_loss:.4f},  Val  Acc:  {val_acc:.2f}%")
         print(f"  Test Loss:  {test_loss:.4f}, Test Acc:  {test_acc:.2f}%")
         print(f"  Model 1 Test Acc: {test_acc1:.2f}%, Model 2 Test Acc: {test_acc2:.2f}%")
         
         # Save best model (use the better of the two models)
-        current_best_acc = max(test_acc1, test_acc2)
-        if current_best_acc > best_test_acc:
-            best_test_acc = current_best_acc
+        current_best_acc = max(val_acc1, val_acc2)
+
+        if current_best_acc > best_val_acc:
+            best_val_acc = current_best_acc
+            best_test_acc = test_acc1 if val_acc1 >= val_acc2 else test_acc2
             best_epoch = epoch + 1
             # Save the better model
-            if test_acc1 >= test_acc2:
+            if val_acc1 >= val_acc2:
                 torch.save(model1.state_dict(), args.model_save_path)
-                print(f"  ✓ Model 1 saved! (Test Acc: {test_acc1:.2f}%)")
+                print(f"  ✓ Model 1 saved! (Val Acc: {val_acc1:.2f}%)")
             else:
                 torch.save(model2.state_dict(), args.model_save_path)
-                print(f"  ✓ Model 2 saved! (Test Acc: {test_acc2:.2f}%)")
-        
+                print(f"  ✓ Model 2 saved! (Val Acc: {val_acc2:.2f}%)")
+
         # Store results
         results.append({
             'epoch': epoch + 1,
@@ -220,7 +238,8 @@ def main(args):
             'test_acc': test_acc,
             'test_acc1': test_acc1,
             'test_acc2': test_acc2,
-            'best_test_acc': best_test_acc
+            'best_test_acc': best_test_acc,
+            'best_val_acc': best_val_acc
         })
         
         print("-" * 80)
@@ -245,7 +264,7 @@ if __name__ == "__main__":
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=64,
                        help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=0.001,
+    parser.add_argument('--lr', type=float, default=0.01,
                        help='Learning rate')
     parser.add_argument('--noise_rate', type=float, default=0.3,
                        help='Noise rate for forget rate schedule')

@@ -101,7 +101,7 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     # Initialize model
     model = get_model(num_classes=num_classes, input_channels=input_channels).to(device)
     # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
 
     # Training loop
     results = []

@@ -169,7 +169,7 @@ python train_resnet_baseline.py --data_path path/to/CIFAR.npz
 
 1. **GPU Recommended**: Training will be much faster with CUDA
 2. **Batch Size**: Adjust based on your GPU memory (default: 64)
-3. **Learning Rate**: Default 0.001 works well, but you can experiment
+3. **Learning Rate**: Default 0.01 works well, but you can experiment
 4. **Epochs**: 15 is usually sufficient for CIFAR with pre-trained ResNet18
 
 ## 📝 Citation

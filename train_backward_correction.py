@@ -140,16 +140,26 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     print(f"TRIAL {trial_num}/{args.n_trials}")
     print(f"{'='*80}")
     
+    # Split 80-20 randomly for training and validation
+    indices = np.arange(len(X_train))
+    np.random.shuffle(indices)
+    split_idx = int(0.8 * len(indices))
+    train_indices = indices[:split_idx]
+    val_indices = indices[split_idx:]
+
     # Create datasets and dataloaders
     if is_fashion_mnist:
-        train_dataset = FashionMNISTDataset(X_train, y_train)
+        train_dataset = FashionMNISTDataset(X_train[train_indices], y_train[train_indices])
+        val_dataset = FashionMNISTDataset(X_train[val_indices], y_train[val_indices])
         test_dataset = FashionMNISTDataset(X_test, y_test)
     else:
-        train_dataset = CIFARDataset(X_train, y_train)
+        train_dataset = CIFARDataset(X_train[train_indices], y_train[train_indices])
+        val_dataset = CIFARDataset(X_train[val_indices], y_train[val_indices])
         test_dataset = CIFARDataset(X_test, y_test)
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size,
                               shuffle=True, num_workers=2, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize model
@@ -157,11 +167,12 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     
     # Backward correction loss for training
     criterion_train = BackwardCorrectionLoss(transition_matrix)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    
+    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
     # Training loop
     results = []
     best_test_acc = 0.0
+    best_val_acc = 0.0
     best_epoch = 0
     
     print(f"Training for {args.epochs} epochs...")
@@ -170,13 +181,16 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
     for epoch in range(args.epochs):
         train_loss, train_acc = train_epoch(model, train_loader, criterion_train, optimizer, device)
         test_loss, test_acc = evaluate(model, test_loader, criterion_eval, device)
+        val_loss, val_acc = evaluate(model, val_loader, criterion_eval, device)
         
         print(f"Epoch [{epoch+1}/{args.epochs}] | "
               f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}% | "
-              f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
-        
+              f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}% | "
+              f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%")
+
         # Save best model
-        if test_acc > best_test_acc:
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
             best_test_acc = test_acc
             best_epoch = epoch + 1
             if args.n_trials == 1:
@@ -194,14 +208,15 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
             'train_acc': train_acc,
             'test_loss': test_loss,
             'test_acc': test_acc,
-            'best_test_acc': best_test_acc
+            'best_val_acc': best_val_acc,
+            'best_test_acc': best_test_acc,
         })
     
     print("-" * 80)
-    print(f"TRIAL {trial_num} COMPLETED | Best Epoch: {best_epoch} | Best Test Acc: {best_test_acc:.2f}%")
+    print(f"TRIAL {trial_num} COMPLETED | Best Epoch: {best_epoch} | Best Val Acc: {best_val_acc:.2f}% | Best Test Acc: {best_test_acc:.2f}%")
     print("=" * 80)
-    
-    return results, best_test_acc, best_epoch
+
+    return results, best_val_acc, best_test_acc, best_epoch
 
 def main(args):
     # Set random seed
@@ -258,7 +273,7 @@ def main(args):
     trial_best_epochs = []
     
     for trial in range(1, args.n_trials + 1):
-        trial_results, best_acc, best_epoch = run_single_trial(
+        trial_results, _, best_acc, best_epoch = run_single_trial(
             args, trial, X_train, y_train, X_test, y_test,
             is_fashion_mnist, input_channels, num_classes,
             transition_matrix, criterion_eval
@@ -306,7 +321,7 @@ if __name__ == "__main__":
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=64,
                        help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=0.001,
+    parser.add_argument('--lr', type=float, default=0.01,
                        help='Learning rate')
     parser.add_argument('--n_trials', type=int, default=1,
                        help='Number of training trials to run')
