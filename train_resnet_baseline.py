@@ -196,7 +196,7 @@ def main(args):
         train_indices = indices[:split_idx]
         val_indices = indices[split_idx:]
 
-        trial_results, best_acc, best_epoch = run_single_trial(
+        trial_results, _, best_acc, best_epoch = run_single_trial(
             args, trial, X_train, y_train, X_test, y_test,
             is_fashion_mnist, input_channels, num_classes, criterion
         )
