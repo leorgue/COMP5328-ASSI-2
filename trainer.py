@@ -17,8 +17,8 @@ def train_epoch(model, dataloader, criterion, optimizer, device):
     correct = 0
     total = 0
 
-    pbar = tqdm(dataloader, desc='Training (Forward)', leave=False)
-    for images, labels in pbar:
+    pbar = tqdm(dataloader, desc='Training', leave=False)
+    for images, labels, _ in pbar:
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(images)
@@ -106,7 +106,7 @@ def evaluate(model, dataloader, criterion, device):
     total = 0
 
     with torch.no_grad():
-        for images, labels in dataloader:
+        for images, labels, _ in dataloader:
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             loss = criterion(outputs, labels)

@@ -17,7 +17,7 @@ class CIFARDataset(Dataset):
 
     def __getitem__(self, idx):
         image = self.normalize(self.images[idx])
-        return image, self.labels[idx]
+        return image, self.labels[idx], idx
 
 
 # Custom Dataset class for FashionMNIST
@@ -38,4 +38,4 @@ class FashionMNISTDataset(Dataset):
 
     def __getitem__(self, idx):
         image = self.normalize(self.images[idx])
-        return image, self.labels[idx]
+        return image, self.labels[idx], idx

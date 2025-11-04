@@ -93,7 +93,7 @@ def main(args):
     input_channels = 1 if is_fashion_mnist else 3
     num_classes = len(np.unique(y_train))
     
-    print(f"\nModel: ResNet18 + Forward Loss Correction")
+    print(f"\nModel: ResNet18")
     print(f"Dataset Type: {args.dataset_type}")
     print(f"Number of Trials: {args.n_trials}")
     print(f"Epochs per Trial: {args.epochs}")
@@ -149,7 +149,7 @@ def main(args):
     print("=" * 80)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Train ResNet18 with Forward Loss Correction')
+    parser = argparse.ArgumentParser(description='Train ResNet18')
     parser.add_argument('--data_path', type=str, default='data/CIFAR.npz',
                        help='Path to dataset (.npz file)')
     parser.add_argument('--dataset_type', type=str, default='CIFAR',
