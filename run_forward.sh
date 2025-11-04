@@ -1,5 +1,6 @@
 declare -a data_paths=("data/CIFAR.npz" "data/FashionMNIST0.3.npz" "data/FashionMNIST0.6.npz")
 declare -a dataset_types=("CIFAR" "FashionMNIST0.3" "FashionMNIST0.6")
+declare -a transition_matrix_paths=("t_matrix/T_est_CIFAR.npy" "t_matrix/T_est_FashionMNIST3.npy" "t_matrix/T_est_FashionMNIST6.npy")
 epochs=15
 batch_size=1280
 lr=0.01
@@ -10,14 +11,17 @@ results_save_path="resnet_forward_results.csv"
 seed=0
 method="forward"
 
+
 for i in "${!data_paths[@]}"; do
     data_path=${data_paths[$i]}
     dataset_type=${dataset_types[$i]}
+    transition_matrix_path=${transition_matrix_paths[$i]}
     results_save_path="resnet_forward_${dataset_type}_results.csv"
 
     cmd="python train.py \
         --data_path $data_path \
         --dataset_type $dataset_type \
+        --transition_matrix_path $transition_matrix_path \
         --epochs $epochs \
         --batch_size $batch_size \
         --lr $lr \

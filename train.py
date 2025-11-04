@@ -15,7 +15,7 @@ from trainer import run_single_trial, run_single_trial_coteaching
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-def get_transition_matrix(dataset_name, device):
+def get_transition_matrix(dataset_name, device, path=None):
     """
     Returns the transition matrix for the specified dataset.
     
@@ -26,6 +26,11 @@ def get_transition_matrix(dataset_name, device):
     Returns:
         Transition matrix as a torch tensor
     """
+    if path:
+        # load .npy matrix from path
+        matrix = np.load(path)
+        return torch.FloatTensor(matrix).to(device)
+
     transition_matrices = {
         'CIFAR': torch.FloatTensor([
             [0.7, 0.3, 0.0],
@@ -75,8 +80,8 @@ def main(args):
         print(f"Reshaped test set: {X_test.shape}")
     
     # Get transition matrix based on dataset type
-    transition_matrix = get_transition_matrix(args.dataset_type, device)
-    
+    transition_matrix = get_transition_matrix(args.dataset_type, device, args.transition_matrix_path)
+
     print("\nTransition Matrix:")
     print(transition_matrix.cpu().numpy())
     
@@ -174,6 +179,8 @@ if __name__ == "__main__":
     parser.add_argument('--method', type=str, default='baseline',
                         choices=['forward', 'backward', 'baseline', 'coteaching'],
                         help='Loss correction method to use')
+    parser.add_argument('--transition_matrix_path', type=str, default=None,
+                        help='Path to .npy file containing transition matrix (overrides default)')
         
     args = parser.parse_args()
     main(args)
