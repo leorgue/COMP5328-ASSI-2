@@ -8,31 +8,18 @@ from get_model import get_model
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from datasets import CIFARDataset, FashionMNISTDataset
 from tqdm import tqdm
 import pandas as pd
 import argparse
 
+from losses import ForwardCorrectionLoss
 from seed_everything import seed_everything
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
-
-# Forward Correction Loss
-class ForwardCorrectionLoss(nn.Module):
-    def __init__(self, transition_matrix):
-        super(ForwardCorrectionLoss, self).__init__()
-        self.transition_matrix = transition_matrix
-    
-    def forward(self, logits, noisy_labels):
-        probs = F.softmax(logits, dim=1)
-        corrected_probs = torch.matmul(probs, self.transition_matrix)
-        corrected_probs = torch.clamp(corrected_probs, min=1e-7, max=1.0)
-        loss = F.nll_loss(torch.log(corrected_probs), noisy_labels)
-        return loss
 
 # Training function
 def train_epoch(model, dataloader, criterion, optimizer, device):

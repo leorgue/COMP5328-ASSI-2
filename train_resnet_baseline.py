@@ -189,13 +189,6 @@ def main(args):
     trial_best_epochs = []
     
     for trial in range(1, args.n_trials + 1):
-        # Split 80-20 randomly for training and validation
-        indices = np.arange(len(X_train))
-        np.random.shuffle(indices)
-        split_idx = int(0.8 * len(indices))
-        train_indices = indices[:split_idx]
-        val_indices = indices[split_idx:]
-
         trial_results, _, best_acc, best_epoch = run_single_trial(
             args, trial, X_train, y_train, X_test, y_test,
             is_fashion_mnist, input_channels, num_classes, criterion

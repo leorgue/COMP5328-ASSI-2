@@ -9,49 +9,19 @@ from get_model import get_model
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from datasets import CIFARDataset, FashionMNISTDataset
 from tqdm import tqdm
 import pandas as pd
 import argparse
 
+from losses import loss_coteaching
 from seed_everything import seed_everything
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-
-# Pre-trained ResNet18 adapted for CIFAR
-# Co-Teaching Loss
-def loss_coteaching(y_1, y_2, t, forget_rate, ind, noise_or_not):
-    """
-    Co-Teaching loss function
-    y_1, y_2: logits from two networks
-    t: labels
-    forget_rate: percentage of data to discard
-    """
-    loss_1 = F.cross_entropy(y_1, t, reduction='none')
-    ind_1_sorted = torch.argsort(loss_1)
-    loss_1_sorted = loss_1[ind_1_sorted]
-
-    loss_2 = F.cross_entropy(y_2, t, reduction='none')
-    ind_2_sorted = torch.argsort(loss_2)
-    loss_2_sorted = loss_2[ind_2_sorted]
-
-    remember_rate = 1 - forget_rate
-    num_remember = int(remember_rate * len(loss_1_sorted))
-
-    # Select small loss samples from each network
-    ind_1_update = ind_1_sorted[:num_remember]
-    ind_2_update = ind_2_sorted[:num_remember]
-
-    # Exchange and update
-    loss_1_update = F.cross_entropy(y_1[ind_2_update], t[ind_2_update])
-    loss_2_update = F.cross_entropy(y_2[ind_1_update], t[ind_1_update])
-
-    return loss_1_update, loss_2_update
 
 # Training function for Co-Teaching
 def train_epoch(model1, model2, dataloader, optimizer1, optimizer2, epoch, num_epochs, noise_rate, device):

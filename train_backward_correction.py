@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from datasets import CIFARDataset, FashionMNISTDataset
 from get_model import get_model
@@ -15,42 +14,12 @@ from tqdm import tqdm
 import pandas as pd
 import argparse
 
+from losses import BackwardCorrectionLoss
 from seed_everything import seed_everything
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
-
-# Backward Correction Loss
-class BackwardCorrectionLoss(nn.Module):
-    def __init__(self, transition_matrix):
-        super(BackwardCorrectionLoss, self).__init__()
-        # Use inverse of transition matrix
-        self.transition_matrix_inv = torch.inverse(transition_matrix)
-        
-    def forward(self, logits, noisy_labels):
-        # Standard cross-entropy loss
-        ce_loss = F.cross_entropy(logits, noisy_labels, reduction='none')
-        
-        # Get one-hot encoded noisy labels
-        batch_size = noisy_labels.size(0)
-        num_classes = logits.size(1)
-        one_hot = torch.zeros(batch_size, num_classes).to(logits.device)
-        one_hot.scatter_(1, noisy_labels.unsqueeze(1), 1)
-        
-        # Apply inverse transition matrix: T^-1 @ one_hot
-        # This gives us the corrected label distribution
-        corrected_labels = torch.matmul(one_hot, self.transition_matrix_inv)
-        corrected_labels = torch.clamp(corrected_labels, min=0.0, max=1.0)
-        
-        # Normalize to ensure it sums to 1
-        corrected_labels = corrected_labels / corrected_labels.sum(dim=1, keepdim=True)
-        
-        # Compute loss with corrected labels
-        log_probs = F.log_softmax(logits, dim=1)
-        loss = -(corrected_labels * log_probs).sum(dim=1).mean()
-        
-        return loss
 
 # Training function
 def train_epoch(model, dataloader, criterion, optimizer, device):
