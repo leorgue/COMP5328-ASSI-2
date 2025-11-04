@@ -9,7 +9,6 @@ from tqdm import tqdm
 from datasets import CIFARDataset, FashionMNISTDataset
 from get_model import get_model
 from losses import BackwardCorrectionLoss, ForwardCorrectionLoss, loss_coteaching
-from train import device
 
 
 def train_epoch(model, dataloader, criterion, optimizer, device):
@@ -122,7 +121,7 @@ def evaluate(model, dataloader, criterion, device):
 
 def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
                       is_fashion_mnist, input_channels, num_classes,
-                      transition_matrix, criterion_eval):
+                      transition_matrix, device):
     """Run a single training trial"""
 
     print(f"\n{'='*80}")
@@ -216,7 +215,7 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
 
 def run_single_trial_coteaching(args, trial_num, X_train, y_train, X_test, y_test,
                       is_fashion_mnist, input_channels, num_classes,
-                      transition_matrix):
+                      transition_matrix, device):
     """Run a single training trial"""
 
     print(f"\n{'='*80}")

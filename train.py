@@ -108,13 +108,13 @@ def main(args):
             trial_results, _, best_acc, best_epoch = run_single_trial_coteaching(
                 args, trial, X_train, y_train, X_test, y_test,
                 is_fashion_mnist, input_channels, num_classes,
-                transition_matrix
+                transition_matrix, device
             )
         else:
             trial_results, _, best_acc, best_epoch = run_single_trial(
                 args, trial, X_train, y_train, X_test, y_test,
                 is_fashion_mnist, input_channels, num_classes,
-                transition_matrix
+                transition_matrix, device
             )
         all_results.extend(trial_results)
         trial_best_accs.append(best_acc)
