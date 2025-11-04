@@ -187,12 +187,12 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
             best_val_acc = val_acc
             best_test_acc = test_acc
             best_epoch = epoch + 1
-            if args.n_trials == 1:
-                torch.save(model.state_dict(), args.model_save_path)
-            else:
-                # Save with trial number
-                model_path = args.model_save_path.replace('.pth', f'_trial{trial_num}.pth')
-                torch.save(model.state_dict(), model_path)
+            # if args.n_trials == 1:
+            #     torch.save(model.state_dict(), args.model_save_path)
+            # else:
+            #     # Save with trial number
+            #     model_path = args.model_save_path.replace('.pth', f'_trial{trial_num}.pth')
+            #     torch.save(model.state_dict(), model_path)
 
         # Store results
         results.append({
@@ -300,12 +300,12 @@ def run_single_trial_coteaching(args, trial_num, X_train, y_train, X_test, y_tes
             best_test_acc = test_acc1 if val_acc1 >= val_acc2 else test_acc2
             best_epoch = epoch + 1
             # Save the better model
-            if val_acc1 >= val_acc2:
-                torch.save(model.state_dict(), args.model_save_path)
-                print(f"  ✓ Model 1 saved! (Val Acc: {val_acc1:.2f}%)")
-            else:
-                torch.save(model2.state_dict(), args.model_save_path)
-                print(f"  ✓ Model 2 saved! (Val Acc: {val_acc2:.2f}%)")
+            # if val_acc1 >= val_acc2:
+            #     torch.save(model.state_dict(), args.model_save_path)
+            #     print(f"  ✓ Model 1 saved! (Val Acc: {val_acc1:.2f}%)")
+            # else:
+            #     torch.save(model2.state_dict(), args.model_save_path)
+            #     print(f"  ✓ Model 2 saved! (Val Acc: {val_acc2:.2f}%)")
         # Store results
         results.append({
             'trial': trial_num,
