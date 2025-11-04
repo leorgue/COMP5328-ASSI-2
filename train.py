@@ -10,10 +10,12 @@ import argparse
 
 from seed_everything import seed_everything
 from trainer import run_single_trial, run_single_trial_coteaching
+# from estimator import estimate_transition_matrix
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Using device: {device}")
+if __name__ == "__main__":
+    print(f"Using device: {device}")
 
 def get_transition_matrix(dataset_name, device):
     """
@@ -28,9 +30,9 @@ def get_transition_matrix(dataset_name, device):
     """
     transition_matrices = {
         'CIFAR': torch.FloatTensor([
-            [0.7, 0.3, 0.0],
-            [0.0, 0.7, 0.3],
-            [0.3, 0.0, 0.7]
+            [1, 0.0, 0.0],
+            [0.0, 1, 0.0],
+            [0.0, 0.0, 1]
         ]),
         'FashionMNIST0.3': torch.FloatTensor([
             [0.7, 0.3, 0.0],
@@ -75,7 +77,25 @@ def main(args):
         print(f"Reshaped test set: {X_test.shape}")
     
     # Get transition matrix based on dataset type
-    transition_matrix = get_transition_matrix(args.dataset_type, device)
+    # transition_matrix = get_transition_matrix(args.dataset_type, device)
+    if args.estimate_T_only:
+        # create a placeholder T; it will not be used because trainer returns early in estimate mode
+        num_classes = len(np.unique(y_train))
+        transition_matrix = torch.eye(num_classes, device=device)
+    else:
+        use_estimated = (args.dataset_type == 'CIFAR') and (args.save_T_path is not None)
+        transition_matrix = None
+        if use_estimated:
+            try:
+                T_loaded = np.load(args.save_T_path)
+                transition_matrix = torch.tensor(T_loaded, dtype=torch.float32, device=device)
+                print("\nLoaded estimated transition matrix from file:")
+                print(transition_matrix.detach().cpu().numpy())
+            except Exception as e:
+                print("\nCould not load estimated T. Falling back to configured matrix. Reason:", e)
+
+        if transition_matrix is None:
+            transition_matrix = get_transition_matrix(args.dataset_type, device)
     
     print("\nTransition Matrix:")
     print(transition_matrix.cpu().numpy())
@@ -102,6 +122,15 @@ def main(args):
     all_results = []
     trial_best_accs = []
     trial_best_epochs = []
+    
+    if args.estimate_T_only:
+        # one call just to trigger the estimator branch in trainer and exit
+        run_single_trial(
+            args, 1, X_train, y_train, X_test, y_test,
+            is_fashion_mnist, input_channels, num_classes,
+            transition_matrix, device
+        )
+        return
     
     for trial in range(1, args.n_trials + 1):
         if args.method == 'coteaching':
@@ -174,7 +203,19 @@ if __name__ == "__main__":
     parser.add_argument('--method', type=str, default='baseline',
                         choices=['forward', 'backward', 'baseline', 'coteaching'],
                         help='Loss correction method to use')
-        
+    parser.add_argument('--estimate_T_only', action='store_true',
+                        help='Pretrain a baseline model and output an estimated transition matrix then exit')
+    parser.add_argument('--pretrain_epochs', type=int, default=3,
+                        help='Baseline epochs before estimating T')
+    parser.add_argument('--t_top_k', type=int, default=1,
+                        help='Top k high confidence samples per class for initial T')
+    parser.add_argument('--t_revise_epochs', type=int, default=5,
+                        help='Epochs to refine T with slack')
+    parser.add_argument('--t_revise_lr', type=float, default=1e-3,
+                        help='Learning rate to refine T')
+    parser.add_argument('--save_T_path', type=str, default='T_estimated.npy',
+                        help='Path to save the estimated transition matrix as numpy')
+
     args = parser.parse_args()
     main(args)
 
