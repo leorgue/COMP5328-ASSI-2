@@ -9,6 +9,27 @@ from tqdm import tqdm
 from datasets import CIFARDataset, FashionMNISTDataset
 from get_model import get_model
 from losses import BackwardCorrectionLoss, ForwardCorrectionLoss, loss_coteaching
+from estimator import estimate_transition_matrix
+
+def pretrain_baseline(model, train_loader, val_loader, device, epochs=3, lr=0.01):
+    """
+    Fast baseline pretrain with CE to get a decent predictor for T estimation.
+    """
+    criterion = nn.CrossEntropyLoss()
+    optimz = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=1e-4)
+
+    for ep in range(epochs):
+        model.train()
+        for x, y in train_loader:
+            x = x.to(device); y = y.to(device)
+            logits = model(x)
+            loss = criterion(logits, y)
+            optimz.zero_grad()
+            loss.backward()
+            optimz.step()
+        # one pass val just to keep consistency
+        evaluate(model, val_loader, criterion, device)
+    return model
 
 
 def train_epoch(model, dataloader, criterion, optimizer, device):
@@ -163,6 +184,23 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
         raise ValueError(f"Unknown method: {args.method}. Choose from 'forward', 'backward', 'baseline'.")
     criterion_eval = nn.CrossEntropyLoss()    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+    if args.estimate_T_only:
+        # quick baseline pretrain to make probabilities useful
+        from trainer import pretrain_baseline
+        pretrain_baseline(model, train_loader, val_loader, device,
+                          epochs=args.pretrain_epochs, lr=args.lr)
+
+        # estimate T using t revision
+        T_est = estimate_transition_matrix(model, train_dataset,
+                                           batch_size=args.batch_size, num_workers=2,
+                                           num_classes=num_classes, device=device,
+                                           top_k=args.t_top_k,
+                                           revise_epochs=args.t_revise_epochs,
+                                           revise_lr=args.t_revise_lr)
+        np.save(args.transition_matrix_path, T_est.detach().cpu().numpy())
+        print("\nEstimated transition matrix saved at:", args.transition_matrix_path)
+        print(T_est.detach().cpu().numpy())
+        return [], 0.0, 0.0, 0
     # Training loop
     results = []
     best_test_acc = 0.0
