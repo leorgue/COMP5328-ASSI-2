@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if __name__ == "__main__":
     print(f"Using device: {device}")
 
-def get_transition_matrix(dataset_name, device):
+def get_transition_matrix(dataset_name, device, path=None):
     """
     Returns the transition matrix for the specified dataset.
     
@@ -28,6 +28,11 @@ def get_transition_matrix(dataset_name, device):
     Returns:
         Transition matrix as a torch tensor
     """
+    if path:
+        # load .npy matrix from path
+        matrix = np.load(path)
+        return torch.FloatTensor(matrix).to(device)
+
     transition_matrices = {
         'CIFAR': torch.FloatTensor([
             [1, 0.0, 0.0],
@@ -113,7 +118,7 @@ def main(args):
     input_channels = 1 if is_fashion_mnist else 3
     num_classes = len(np.unique(y_train))
     
-    print(f"\nModel: ResNet18 + Forward Loss Correction")
+    print(f"\nModel: ResNet18")
     print(f"Dataset Type: {args.dataset_type}")
     print(f"Number of Trials: {args.n_trials}")
     print(f"Epochs per Trial: {args.epochs}")
@@ -178,7 +183,7 @@ def main(args):
     print("=" * 80)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Train ResNet18 with Forward Loss Correction')
+    parser = argparse.ArgumentParser(description='Train ResNet18')
     parser.add_argument('--data_path', type=str, default='data/CIFAR.npz',
                        help='Path to dataset (.npz file)')
     parser.add_argument('--dataset_type', type=str, default='CIFAR',
