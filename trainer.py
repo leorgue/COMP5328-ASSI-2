@@ -197,8 +197,8 @@ def run_single_trial(args, trial_num, X_train, y_train, X_test, y_test,
                                            top_k=args.t_top_k,
                                            revise_epochs=args.t_revise_epochs,
                                            revise_lr=args.t_revise_lr)
-        np.save(args.save_T_path, T_est.detach().cpu().numpy())
-        print("\nEstimated transition matrix saved at:", args.save_T_path)
+        np.save(args.transition_matrix_path, T_est.detach().cpu().numpy())
+        print("\nEstimated transition matrix saved at:", args.transition_matrix_path)
         print(T_est.detach().cpu().numpy())
         return [], 0.0, 0.0, 0
     # Training loop

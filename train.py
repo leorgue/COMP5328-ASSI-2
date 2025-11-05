@@ -83,11 +83,11 @@ def main(args):
         num_classes = len(np.unique(y_train))
         transition_matrix = torch.eye(num_classes, device=device)
     else:
-        use_estimated = (args.save_T_path is not None)
+        use_estimated = (args.transition_matrix_path is not None)
         transition_matrix = None
         if use_estimated:
             try:
-                T_loaded = np.load(args.save_T_path)
+                T_loaded = np.load(args.transition_matrix_path)
                 transition_matrix = torch.tensor(T_loaded, dtype=torch.float32, device=device)
                 print("\nLoaded estimated transition matrix from file:")
                 print(transition_matrix.detach().cpu().numpy())
@@ -213,8 +213,8 @@ if __name__ == "__main__":
                         help='Epochs to refine T with slack')
     parser.add_argument('--t_revise_lr', type=float, default=1e-3,
                         help='Learning rate to refine T')
-    parser.add_argument('--save_T_path', type=str, default=None,
-                        help='Path to save the estimated transition matrix as numpy')
+    parser.add_argument('--transition_matrix_path', type=str, default=None,
+                        help='Path to .npy file containing transition matrix (overrides default)')
 
     args = parser.parse_args()
     main(args)
