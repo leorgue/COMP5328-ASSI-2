@@ -83,7 +83,7 @@ def main(args):
         num_classes = len(np.unique(y_train))
         transition_matrix = torch.eye(num_classes, device=device)
     else:
-        use_estimated = (args.dataset_type == 'CIFAR') and (args.save_T_path is not None)
+        use_estimated = (args.save_T_path is not None)
         transition_matrix = None
         if use_estimated:
             try:
@@ -213,7 +213,7 @@ if __name__ == "__main__":
                         help='Epochs to refine T with slack')
     parser.add_argument('--t_revise_lr', type=float, default=1e-3,
                         help='Learning rate to refine T')
-    parser.add_argument('--save_T_path', type=str, default='T_estimated.npy',
+    parser.add_argument('--save_T_path', type=str, default=None,
                         help='Path to save the estimated transition matrix as numpy')
 
     args = parser.parse_args()
